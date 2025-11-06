@@ -51,10 +51,12 @@ namespace MazeFromExcel
                 Console.WriteLine($"Max Col: {maxCol}");
 
                 var moveableCells = new HashSet<(int, int)>();
-                var doors = new HashSet<(int, int)>();
+                var doors = new HashSet<(int, int, int)>();
                 var walls = new HashSet<(int, int)>();
-                var freezeTraps = new HashSet<(int, int)>();
-                var levers = new HashSet<(int, int)>();
+                var freezeTraps = new HashSet<(int, int, int)>();
+                var levers = new HashSet<(int, int, int)>();
+
+                var leverTargets = new HashSet<(int, int, int, int)>();
 
                 // If I wanted to start my index at 1 I would have used lua....
                 // Sadly x sheets start at 1.
@@ -65,6 +67,23 @@ namespace MazeFromExcel
                         var cell = ws.Cells[row, col];
                         var fillColor = cell.Style.Fill.BackgroundColor.Rgb;
                         var text = cell.Text;
+                        int intText;
+                        try
+                        {
+                            if (text == "")
+                            {
+                                intText = -1;
+                            }
+                            else
+                            {
+                                intText = int.Parse(text);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            Console.Error.WriteLine("Non numerican text found. Not allowed.");
+                            return;
+                        }
 
                         if (fillColor == null)
                         {
@@ -83,15 +102,17 @@ namespace MazeFromExcel
                         if (isMoveable)
                             moveableCells.Add((col, row));
                         if (isLever)
-                            levers.Add((col, row));
+                            levers.Add((intText, col, row));
                         if (isDoor)
-                            doors.Add((col, row));
+                            doors.Add((intText, col, row));
                         if (isWall)
                             walls.Add((col, row));
                         if (isFreezeTrap)
-                            freezeTraps.Add((col, row));
+                            freezeTraps.Add((intText, col, row));
                     }
                 }
+
+                foreach (var (target, x, y) in levers) { }
 
                 var adjacents = new List<(int, int, int, int)>();
 
