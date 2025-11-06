@@ -10,6 +10,7 @@ namespace MazeFromExcel
     {
         public int X { get; set; }
         public int Y { get; set; }
+
         public override string ToString() => $"cell({X},{Y}).";
     }
 
@@ -55,7 +56,6 @@ namespace MazeFromExcel
                 var freezeTraps = new HashSet<(int, int)>();
                 var levers = new HashSet<(int, int)>();
 
-
                 // If I wanted to start my index at 1 I would have used lua....
                 // Sadly x sheets start at 1.
                 for (int row = 1; row <= maxRow; row++)
@@ -63,24 +63,22 @@ namespace MazeFromExcel
                     for (int col = 1; col <= maxCol; col++)
                     {
                         var cell = ws.Cells[row, col];
-                        var fill = cell.Style.Fill.BackgroundColor;
+                        var fillColor = cell.Style.Fill.BackgroundColor.Rgb;
                         var text = cell.Text;
 
-                        // Do not believe this is needed based on docs.
-                        // Here just in case
-                        if (fill.Rgb == null)
+                        if (fillColor == null)
                         {
-                            Console.Error.WriteLine("Empty Square Found. \nEnsure all grid elements are valid.");
-                            return;
+                            fillColor = "FFFFFFFF";
                         }
 
                         // ARGB format.....ew
-                        bool isWall = fill.Rgb.ToUpper() == "FF000000"; // black
-                        bool isFreezeTrap = fill.Rgb.ToUpper() == "FF0000FF"; // blue
-                        bool isDoor = fill.Rgb.ToUpper() == "FF5A0E00"; // brown
-                        bool isLever = fill.Rgb.ToUpper() == "FFFF00FF"; // magenta
+                        bool isWall = fillColor.ToUpper() == "FF000000"; // black
+                        bool isFreezeTrap = fillColor.ToUpper() == "FF0000FF"; // blue
+                        bool isDoor = fillColor.ToUpper() == "FF5A0E00"; // brown
+                        bool isLever = fillColor.ToUpper() == "FFFF00FF"; // magenta
 
-                        bool isMoveable = fill.Rgb.ToUpper() == "FFFFFFFF" || isFreezeTrap || isDoor || isLever; // white
+                        bool isMoveable =
+                            fillColor.ToUpper() == "FFFFFFFF" || isFreezeTrap || isDoor || isLever; // white
 
                         if (isMoveable)
                             moveableCells.Add((col, row));
@@ -101,7 +99,10 @@ namespace MazeFromExcel
                 {
                     var neighbors = new (int, int)[]
                     {
-                        (x+1, y), (x-1, y), (x, y+1), (x, y-1)
+                        (x + 1, y),
+                        (x - 1, y),
+                        (x, y + 1),
+                        (x, y - 1),
                     };
 
                     foreach (var (nx, ny) in neighbors)
@@ -111,28 +112,28 @@ namespace MazeFromExcel
                     }
                 }
 
-                Console.WriteLine("% Cells:");
+                Console.WriteLine($"% {moveableCells.Count} Cells:");
                 foreach (var (x, y) in moveableCells)
                     Console.WriteLine($"cell({x},{y}).");
 
-                Console.WriteLine("\n% Adjacents:");
+                Console.WriteLine($"\n% {adjacents.Count} Adjacents:");
                 foreach (var (x1, y1, x2, y2) in adjacents)
                     Console.WriteLine($"adjacent(({x1},{y1}),({x2},{y2})).");
 
-                Console.WriteLine("\n% Freeze Traps:");
+                Console.WriteLine($"\n% {freezeTraps.Count} Freeze Traps:");
                 foreach (var (x, y) in freezeTraps)
                     Console.WriteLine($"freeze_trap({x},{y}).");
 
-                Console.WriteLine("\n% Doors:");
-                foreach (var (x, y) in freezeTraps)
+                Console.WriteLine($"\n% {doors.Count} Doors:");
+                foreach (var (x, y) in doors)
                     Console.WriteLine($"door({x},{y}).");
 
-                Console.WriteLine("\n% Walls:");
+                Console.WriteLine($"\n% {walls.Count} Walls:");
                 foreach (var (x, y) in walls)
                     Console.WriteLine($"wall({x},{y}).");
 
-                Console.WriteLine("\n% Levers:");
-                foreach (var (x, y) in walls)
+                Console.WriteLine($"\n% {levers.Count} Levers:");
+                foreach (var (x, y) in levers)
                     Console.WriteLine($"lever({x},{y}).");
             }
         }
