@@ -1,22 +1,10 @@
 % --------------------------
 % Objects and their types
 % --------------------------
-
-% cell(0, 0). % (X,Y) is a traversable cell
-% wall(0, 0). % (X,Y) is a wall, cannot be entered
-% door(0, 0). % (X,Y) is a closed door, blocks movement
-% trap(0, 0). % (X,Y) is a freeze trap
-% lever(0, 0, 0, 0). % lever at (X,Y) controls door/trap at (Z,W)
-% adjacent(0, 0, 0, 0). % (X,Y) is adjacent to (Z,W)
-% player(p).
-% player_start(p, 0, 0). % player P starts at (X,Y)
-% exit(0, 0). % exit cell; goal if any runner reaches
-% 2 Players:
+% 1 Players:
 player(1).
-% player(2).
-% 2 Player Starts:
-holds(at(1, 5, 6), 0).
-% holds(at(2, 13, 2), 0).
+% 1 Player Starts:
+holds(at(1, 2, 6), 0).
 % 101 Cells:
 cell(2,2).
 cell(5,2).
@@ -122,10 +110,10 @@ cell(14,14).
 
 % 2 Freeze Traps:
 trap(6,2).
-trap(11,14).
+trap(3,6).
 
 % 1 Doors:
-% door(2,5).
+door(2,5).
 
 % 124 Walls:
 wall(1,1).
@@ -254,16 +242,16 @@ wall(14,15).
 wall(15,15).
 
 % 1 Exits:
-exit(7,8).
+exit(7,7).
 
-% 1 Levers:
-lever(14,6, 6, 2).
+% 0 Levers:
+
 
 % --------------------------
 % Fluents
 % --------------------------
 
-fluent(inertial, at(P, X, Y)) :- cell(X, Y), player(P). % player P is at (X, Y)
+fluent(inertial, at(P, X, Y)) :- tile(X, Y), player(P). % player P is at (X, Y)
 fluent(inertial, frozen(P)) :- player(P). % player P is frozen this turn
 fluent(inertial, open(X, Y)) :- door(X, Y). % the door at (X, Y) is open
 fluent(inertial, deactivated(X, Y)) :- trap(X, Y). % the trap at (X, Y) is deactivated
@@ -284,17 +272,18 @@ tile(X,Y) :- trap(X,Y).
 tile(X,Y) :- exit(X,Y).
 tile(X,Y) :- lever(X,Y,_,_).
 
-% Adjacency in 8 directions, but only if both coordinates exist as tiles
+% Adjacency in 4 directions, but only if both coordinates exist as tiles
 adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X + 1, Y1 = Y.
 adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y.
 adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X,     Y1 = Y + 1.
 adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X,     Y1 = Y - 1.
 
-adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X + 1, Y1 = Y + 1.
-adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X + 1, Y1 = Y - 1.
-adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y + 1.
-adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y - 1.
+% adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X + 1, Y1 = Y + 1.
+% adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X + 1, Y1 = Y - 1.
+% adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y + 1.
+% adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y - 1.
 
+% adjacent(X, Y, X1, Y1) :- adjacent(X1, Y1, X, Y).
 
 % --------------------------
 % Actions
@@ -303,6 +292,7 @@ adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y - 1.
 action(move(P, X, Y)) :- player(P), tile(X, Y). % player P will move to (X, Y)
 action(pull_lever(P, X, Y)) :- player(P), lever(X, Y, Z, W). % player P pulls the lever at (X, Y)
 action(open_door(P, X, Y)) :- player(P), door(X, Y). % player P opens the door at (X, Y)
+action(wait(P)) :- player(P). % player P does nothing
 
 % --------------------------
 % Axioms
@@ -311,6 +301,11 @@ action(open_door(P, X, Y)) :- player(P), door(X, Y). % player P opens the door a
 % Dynamic causal laws: direct effects of actions
 
 holds(at(P, X, Y), I1) :- occurs(move(P, X, Y), I),
+                      I < n,
+                      next(I, I1).
+
+-holds(at(P, Z, W), I1) :- occurs(move(P, X, Y), I),
+                      holds(at(P, Z, W), I),
                       I < n,
                       next(I, I1).
 
@@ -337,34 +332,75 @@ holds(frozen(P), I1) :- holds(at(P, X, Y), I),
 % State constraints
 
 -holds(at(P, X, Y), I) :- holds(at(P, Z, W), I), Z != X, Y != W, tile(X, Y).
--holds(at(P, X, Y), I) :- holds(at(P1, X, Y), I), P != P1, player(P).
+% -holds(at(P, X, Y), I) :- holds(at(P1, X, Y), I), P != P1, player(P).
 
 % Executability conditions
 
--occurs(move(P, X, Y), I) :- holds(at(P, Z, W), I), not adjacent(X, Y, Z, W), tile(X, Y).
--occurs(move(P, X, Y), I) :- holds(at(P, Z, W), I), door(X, Y), -holds(open(X, Y), I).
--occurs(move(P, X, Y), I) :- holds(at(P, Z, W), I), wall(X, Y).
--occurs(pull_lever(P, X, Y), I) :- -holds(at(P, X, Y), I).
--occurs(open_door(P, X, Y), I) :- holds(at(P, Z, W), I), not adjacent(X, Y, Z, W), tile(X, Y).
--occurs(open_door(P, X, Y), I) :- holds(open(X, Y), I), player(P).
+% must be on the lever to pull it
+:- occurs(pull_lever(P, X, Y), I),
+  not holds(at(P, X, Y), I).
 
-agent(move(P, X, Y), P) :- player(P), cell(X, Y).
+% must be adjacent to a door to open it
+:- occurs(open_door(P, X, Y), I),
+  holds(at(P, Z, W), I),
+  not adjacent(X, Y, Z, W).
+
+% cannot open an already open door
+:- occurs(open_door(P, X, Y), I),
+  holds(open(X, Y), I).
+
+
+% cannot move to non-adjacent tile
+:- occurs(move(P,X,Y), I),
+  holds(at(P,Z,W), I),
+  not adjacent(Z,W,X,Y).
+
+% cannot move into a closed door
+:- occurs(move(P,X,Y), I),
+  door(X,Y),
+  not holds(open(X,Y), I).
+
+% cannot move into a wall (just in case)
+:- occurs(move(P,X,Y), I),
+  wall(X,Y).
+
+
+agent(move(P, X, Y), P) :- player(P), tile(X, Y).
 agent(pull_lever(P, X, Y), P) :- player(P), lever(X, Y, Z, W).
 agent(open_door(P, X, Y), P) :- player(P), door(X, Y).
-agent(close_door(P, X, Y), P) :- player(P), door(X, Y).
+agent(wait(P), P) :- player(P).
 
--occurs(A1, I) :-
-    occurs(A2, I),
-    agent(A1, P),
-	agent(A2, P),
-	A1 != A2,
-	step(I).
+agent_no_wait(move(P, X, Y), P) :- player(P), tile(X, Y).
+agent_no_wait(pull_lever(P, X, Y), P) :- player(P), lever(X, Y, Z, W).
+agent_no_wait(open_door(P, X, Y), P) :- player(P), door(X, Y).
+% :-  occurs(A2, I),
+%     agent(A1, P),
+% 	agent(A2, P),
+% 	A1 != A2,
+% 	step(I).
 
--occurs(A, I) :-
-	agent(A, P),
-	holds(frozen(P), I),
-	freeze_turn(I),
-	step(I).
+:- occurs(A1, I),
+  occurs(A2, I),
+  agent(A1, P),
+  agent(A2, P),
+  A1 != A2,
+  step(I).
+
+% :- occurs(A, I),
+%   occurs(A2, I),
+%   A != A2.
+
+% :-  agent_no_wait(A, P),
+% 	holds(frozen(P), I),
+% 	freeze_turn(I),
+% 	step(I).
+
+:- occurs(A, I),
+   agent_no_wait(A, P),
+   holds(frozen(P), I),
+   freeze_turn(I),
+   step(I).
+
 
 %% GENERAL INERTIA AXIOMS FOR INERTIAL FLUENTS:
 
@@ -391,7 +427,7 @@ holds(F,I1) :- fluent(inertial,F),
 %      Initially, ...
 % --------------------------
 
-#const n=20. % change the number
+#const n=10. % change the number
 step(0..n).
 
 next(I, I1) :- step(I), step(I1), I1 = I+1.
@@ -416,17 +452,22 @@ player_not_exit(I) :-
     step(I),
     not player_exit(P, I).
 
-% goal(I) :-
-%     step(I),
-%     not player_not_exit(I).
-
 goal(I) :-
     step(I),
-    holds(at(P, X, Y), I), exit(X, Y), player(P).
+    not player_not_exit(I).
+
+% goal(I) :-
+%     step(I),
+%     holds(at(P, X, Y), I), exit(X, Y), player(P).
 
 success :- goal(I), I <= n.
 
 :- not success.
+% occurs(move(1, 3, 6), 0).
+% occurs(move(1, 2, 7), 1).
+% occurs(move(1, 4, 6), 2).
+% occurs(move(1, 4, 6), 0).
+% occurs(move(1, 5, 6), 1).
 
 occurs(A, I) | -occurs(A, I) :- action(A),
                                 step(I),
