@@ -1,19 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
-using OfficeOpenXml;
+﻿using OfficeOpenXml;
 
 namespace MazeFromExcel
 {
-    class Cell
-    {
-        public int X { get; set; }
-        public int Y { get; set; }
-
-        public override string ToString() => $"cell({X},{Y}).";
-    }
-
     class Program
     {
         static void Main(string[] args)
@@ -50,11 +38,13 @@ namespace MazeFromExcel
                 Console.WriteLine($"Max Row: {maxRow}");
                 Console.WriteLine($"Max Col: {maxCol}");
 
+                var players = new HashSet<(int, int, int)>();
                 var moveableCells = new HashSet<(int, int)>();
                 var doors = new HashSet<(int, int, int)>();
                 var walls = new HashSet<(int, int)>();
                 var freezeTraps = new HashSet<(int, int, int)>();
                 var levers = new HashSet<(int, int, int)>();
+                var ending = new HashSet<(int, int)>();
 
                 var leverTargets = new HashSet<(int, int, int, int)>();
 
@@ -93,12 +83,16 @@ namespace MazeFromExcel
                         // ARGB format.....ew
                         bool isWall = fillColor.ToUpper() == "FF000000"; // black
                         bool isFreezeTrap = fillColor.ToUpper() == "FF0000FF"; // blue
-                        bool isDoor = fillColor.ToUpper() == "FF5A0E00"; // brown
+                        bool isDoor = fillColor.ToUpper() == "FF5B0F00"; // brown
                         bool isLever = fillColor.ToUpper() == "FFFF00FF"; // magenta
+                        bool isExit = fillColor.ToUpper() == "FF00FF00"; // green
+                        bool isPlayer = fillColor.ToUpper() == "FFFFFFFF" && intText != -1;
 
                         bool isMoveable =
-                            fillColor.ToUpper() == "FFFFFFFF" || isFreezeTrap || isDoor || isLever; // white
+                            fillColor.ToUpper() == "FFFFFFFF" || isFreezeTrap || isDoor || isLever || isExit; // white
 
+                        if (isPlayer)
+                            players.Add((intText,col, row));
                         if (isMoveable)
                             moveableCells.Add((col, row));
                         if (isLever)
@@ -109,53 +103,88 @@ namespace MazeFromExcel
                             walls.Add((col, row));
                         if (isFreezeTrap)
                             freezeTraps.Add((intText, col, row));
+                        if (isExit)
+                            ending.Add((col, row));
                     }
                 }
 
                 foreach (var (target, x, y) in levers) { }
 
-                var adjacents = new List<(int, int, int, int)>();
+                // var adjacents = new List<(int, int, int, int)>();
 
-                foreach (var (x, y) in moveableCells)
-                {
-                    var neighbors = new (int, int)[]
-                    {
-                        (x + 1, y),
-                        (x - 1, y),
-                        (x, y + 1),
-                        (x, y - 1),
-                    };
+                // foreach (var (x, y) in moveableCells)
+                // {
+                //     var neighbors = new (int, int)[]
+                //     {
+                //         (x + 1, y),
+                //         (x - 1, y),
+                //         (x, y + 1),
+                //         (x, y - 1),
+                //     };
 
-                    foreach (var (nx, ny) in neighbors)
-                    {
-                        if (moveableCells.Contains((nx, ny)))
-                            adjacents.Add((x, y, nx, ny));
-                    }
-                }
+                //     foreach (var (nx, ny) in neighbors)
+                //     {
+                //         if (moveableCells.Contains((nx, ny)))
+                //             adjacents.Add((x, y, nx, ny));
+                //     }
+                // }
+
+                Console.WriteLine($"% {players.Count} Players:");
+                foreach (var (z, x, y) in players)
+                    Console.WriteLine($"player({z}).");
+
+                Console.WriteLine($"% {players.Count} Player Starts:");
+                foreach (var (z, x, y) in players)
+                    Console.WriteLine($"holds(at({z}, {x}, {y}), 0).");
 
                 Console.WriteLine($"% {moveableCells.Count} Cells:");
                 foreach (var (x, y) in moveableCells)
                     Console.WriteLine($"cell({x},{y}).");
 
-                Console.WriteLine($"\n% {adjacents.Count} Adjacents:");
-                foreach (var (x1, y1, x2, y2) in adjacents)
-                    Console.WriteLine($"adjacent(({x1},{y1}),({x2},{y2})).");
+                // Console.WriteLine($"\n% {adjacents.Count} Adjacents:");
+                // foreach (var (x1, y1, x2, y2) in adjacents)
+                //     Console.WriteLine($"adjacent({x1},{y1},{x2},{y2}).");
 
                 Console.WriteLine($"\n% {freezeTraps.Count} Freeze Traps:");
-                foreach (var (x, y) in freezeTraps)
-                    Console.WriteLine($"freeze_trap({x},{y}).");
+                foreach (var (z, x, y) in freezeTraps)
+                    Console.WriteLine($"trap({x},{y}).");
 
                 Console.WriteLine($"\n% {doors.Count} Doors:");
-                foreach (var (x, y) in doors)
+                foreach (var (z, x, y) in doors)
                     Console.WriteLine($"door({x},{y}).");
 
                 Console.WriteLine($"\n% {walls.Count} Walls:");
                 foreach (var (x, y) in walls)
                     Console.WriteLine($"wall({x},{y}).");
 
+                Console.WriteLine($"\n% {ending.Count} Exits:");
+                foreach (var (x, y) in ending)
+                    Console.WriteLine($"exit({x},{y}).");
+
                 Console.WriteLine($"\n% {levers.Count} Levers:");
-                foreach (var (x, y) in levers)
-                    Console.WriteLine($"lever({x},{y}).");
+                foreach (var (z, x, y) in levers){
+                    if (z != -1) {
+                        foreach(var (z1, x1, y1) in freezeTraps)
+                        {
+                            if (z == z1)
+                            {
+                                Console.WriteLine($"lever({x},{y}, {x1}, {y1}).");
+                            }
+                        }
+                        foreach(var (z1, x1, y1) in doors)
+                        {
+                            if (z == z1)
+                            {
+                                Console.WriteLine($"lever({x},{y}, {x1}, {y1}).");
+                            }
+                        }
+                    } else
+                    {
+                        Console.WriteLine($"lever({x},{y}, -1, -1).");
+                    }
+                    // Console.WriteLine($"lever({x},{y}).");
+                }
+                        
             }
         }
     }
