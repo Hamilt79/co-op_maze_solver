@@ -1,10 +1,29 @@
+% Name: Co-op Maze Running Solver
+
+% KRR Methodology: Typical planning problem.
+%                  Goes through N number of steps and tries every allowed action
+
+% Output: occurs(Action, TimeStep).
+
+% Input:
+% cell(X, Y). % (X,Y) is a traversable cell
+% player(X). % (X) is a player
+% wall(X, Y). % (X,Y) is a wall, cannot be entered
+% door(X, Y). % (X,Y) is a door, blocks movement when closed
+% trap(X, Y). % (X,Y) is a freeze trap
+% lever(X, Y, Z, W). % lever at (X,Y) controls door/trap at (Z,W)
+% adjacent(X, Y, Z, W). % (X,Y) is adjacent to (Z,W)
+% exit(X, Y). % exit cell; goal if any runner reaches it
+
 % --------------------------
 % Objects and their types
 % --------------------------
-% 1 Players:
+% 2 Players:
 player(1).
-% 1 Player Starts:
-holds(at(1, 2, 6), 0).
+player(2).
+% 2 Player Starts:
+holds(at(1, 2, 2), 0).
+holds(at(2, 13, 2), 0).
 % 101 Cells:
 cell(2,2).
 cell(5,2).
@@ -110,7 +129,7 @@ cell(14,14).
 
 % 2 Freeze Traps:
 trap(6,2).
-trap(3,6).
+trap(11,14).
 
 % 1 Doors:
 door(2,5).
@@ -242,20 +261,27 @@ wall(14,15).
 wall(15,15).
 
 % 1 Exits:
-exit(7,7).
+exit(7,8).
 
-% 0 Levers:
+% 1 Levers:
+lever(14,6, 6, 2).
 
 
 % --------------------------
 % Fluents
 % --------------------------
 
-fluent(inertial, at(P, X, Y)) :- tile(X, Y), player(P). % player P is at (X, Y)
-fluent(inertial, frozen(P)) :- player(P). % player P is frozen this turn
-fluent(inertial, open(X, Y)) :- door(X, Y). % the door at (X, Y) is open
-fluent(inertial, deactivated(X, Y)) :- trap(X, Y). % the trap at (X, Y) is deactivated
+% player P is at (X, Y)
+fluent(inertial, at(P, X, Y)) :- tile(X, Y), player(P).
+% player P is frozen this turn
+fluent(inertial, frozen(P)) :- player(P).
+% the door at (X, Y) is open
+fluent(inertial, open(X, Y)) :- door(X, Y).
+% the trap at (X, Y) is deactivated
+fluent(inertial, deactivated(X, Y)) :- trap(X, Y).
 
+% Flip-flopper for moving at half speed
+% freeze_turn is only true every other step
 freeze_turn(I) :- not freeze_turn_prev(I), step(I).
 freeze_turn_prev(I) :- freeze_turn(I-1), step(I).
 
@@ -278,21 +304,25 @@ adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y.
 adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X,     Y1 = Y + 1.
 adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X,     Y1 = Y - 1.
 
+% Adjacency in the diagonals
+% Disabled
 % adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X + 1, Y1 = Y + 1.
 % adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X + 1, Y1 = Y - 1.
 % adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y + 1.
 % adjacent(X,Y,X1,Y1) :- tile(X,Y), tile(X1,Y1), X1 = X - 1, Y1 = Y - 1.
 
-% adjacent(X, Y, X1, Y1) :- adjacent(X1, Y1, X, Y).
-
 % --------------------------
 % Actions
 % --------------------------
 
-action(move(P, X, Y)) :- player(P), tile(X, Y). % player P will move to (X, Y)
-action(pull_lever(P, X, Y)) :- player(P), lever(X, Y, Z, W). % player P pulls the lever at (X, Y)
-action(open_door(P, X, Y)) :- player(P), door(X, Y). % player P opens the door at (X, Y)
-action(wait(P)) :- player(P). % player P does nothing
+% player P will move to (X, Y)
+action(move(P, X, Y)) :- player(P), tile(X, Y).
+% player P pulls the lever at (X, Y)
+action(pull_lever(P, X, Y)) :- player(P), lever(X, Y, Z, W).
+% player P opens the door at (X, Y)
+action(open_door(P, X, Y)) :- player(P), door(X, Y).
+% player P does nothing
+action(wait(P)) :- player(P).
 
 % --------------------------
 % Axioms
@@ -300,29 +330,35 @@ action(wait(P)) :- player(P). % player P does nothing
 
 % Dynamic causal laws: direct effects of actions
 
+% Player P will be at X, Y if they move to X, Y in the previous step
 holds(at(P, X, Y), I1) :- occurs(move(P, X, Y), I),
                       I < n,
                       next(I, I1).
 
+% Player P will no longer be at Z, W if they move to X, Y in the previous step
 -holds(at(P, Z, W), I1) :- occurs(move(P, X, Y), I),
                       holds(at(P, Z, W), I),
                       I < n,
                       next(I, I1).
 
+% A door is open if open_door occurs at it's location
 holds(open(X, Y), I1) :- occurs(open_door(P, X, Y), I),
                       I < n,
                       next(I, I1).
 
+% A door is open if pull_lever occurs on a lever that is attached to the door
 holds(open(X, Y), I1) :- occurs(pull_lever(P, W, Z), I),
                       lever(W, Z, X, Y),
                       I < n,
                       next(I, I1).
 
+% A trap is deactivated if pull_lever occurs on a lever that is attached to the trap
 holds(deactivated(X, Y), I1) :- occurs(pull_lever(P, W, Z), I),
                       lever(W, Z, X, Y),
                       I < n,
                       next(I, I1).
 
+% A player is frozen every other turn if they have entered a freeze trap that was not deactivated
 holds(frozen(P), I1) :- holds(at(P, X, Y), I),
                       -holds(deactivated(X, Y), I),
                       trap(X, Y),
@@ -331,54 +367,55 @@ holds(frozen(P), I1) :- holds(at(P, X, Y), I),
 
 % State constraints
 
+% A player can only be in one place at a time
 -holds(at(P, X, Y), I) :- holds(at(P, Z, W), I), Z != X, Y != W, tile(X, Y).
+% Rule disabled because I want to allow players to stack
 % -holds(at(P, X, Y), I) :- holds(at(P1, X, Y), I), P != P1, player(P).
 
 % Executability conditions
+% These were changed to constraints to improve performance
 
-% must be on the lever to pull it
+% Must be on the lever to pull it
 :- occurs(pull_lever(P, X, Y), I),
   not holds(at(P, X, Y), I).
 
-% must be adjacent to a door to open it
+% Must be adjacent to a door to open it
 :- occurs(open_door(P, X, Y), I),
   holds(at(P, Z, W), I),
   not adjacent(X, Y, Z, W).
 
-% cannot open an already open door
+% Cannot open an already open door
 :- occurs(open_door(P, X, Y), I),
   holds(open(X, Y), I).
 
 
-% cannot move to non-adjacent tile
+% Cannot move to non-adjacent tile
 :- occurs(move(P,X,Y), I),
   holds(at(P,Z,W), I),
   not adjacent(Z,W,X,Y).
 
-% cannot move into a closed door
+% Cannot move into a closed door
 :- occurs(move(P,X,Y), I),
   door(X,Y),
   not holds(open(X,Y), I).
 
-% cannot move into a wall (just in case)
+% Cannot move into a wall (just in case)
 :- occurs(move(P,X,Y), I),
   wall(X,Y).
 
-
+% Turning each action into an agent move to group them
 agent(move(P, X, Y), P) :- player(P), tile(X, Y).
 agent(pull_lever(P, X, Y), P) :- player(P), lever(X, Y, Z, W).
 agent(open_door(P, X, Y), P) :- player(P), door(X, Y).
 agent(wait(P), P) :- player(P).
 
+% Agent moves without "wait" included so that the player can
+% wait when they are frozen
 agent_no_wait(move(P, X, Y), P) :- player(P), tile(X, Y).
 agent_no_wait(pull_lever(P, X, Y), P) :- player(P), lever(X, Y, Z, W).
 agent_no_wait(open_door(P, X, Y), P) :- player(P), door(X, Y).
-% :-  occurs(A2, I),
-%     agent(A1, P),
-% 	agent(A2, P),
-% 	A1 != A2,
-% 	step(I).
 
+% Two actions cannot occur by the same player in the same step
 :- occurs(A1, I),
   occurs(A2, I),
   agent(A1, P),
@@ -386,21 +423,12 @@ agent_no_wait(open_door(P, X, Y), P) :- player(P), door(X, Y).
   A1 != A2,
   step(I).
 
-% :- occurs(A, I),
-%   occurs(A2, I),
-%   A != A2.
-
-% :-  agent_no_wait(A, P),
-% 	holds(frozen(P), I),
-% 	freeze_turn(I),
-% 	step(I).
-
+% The player cannot execute most actions when frozen for that turn
 :- occurs(A, I),
    agent_no_wait(A, P),
    holds(frozen(P), I),
    freeze_turn(I),
    step(I).
-
 
 %% GENERAL INERTIA AXIOMS FOR INERTIAL FLUENTS:
 
@@ -427,7 +455,7 @@ holds(F,I1) :- fluent(inertial,F),
 %      Initially, ...
 % --------------------------
 
-#const n=10. % change the number
+#const n=40. % change the number
 step(0..n).
 
 next(I, I1) :- step(I), step(I1), I1 = I+1.
@@ -443,31 +471,25 @@ next(I, I1) :- step(I), step(I1), I1 = I+1.
 
 % This rule changes depending on the planning problem
 
+% Player is at the exit
 player_exit(P, I) :-
     holds(at(P, X, Y), I),
     exit(X, Y).
 
+% Player is not at the exit
 player_not_exit(I) :-
     player(P),
     step(I),
     not player_exit(P, I).
 
+% Goal is for every player to be at the exit
 goal(I) :-
     step(I),
     not player_not_exit(I).
 
-% goal(I) :-
-%     step(I),
-%     holds(at(P, X, Y), I), exit(X, Y), player(P).
-
 success :- goal(I), I <= n.
 
 :- not success.
-% occurs(move(1, 3, 6), 0).
-% occurs(move(1, 2, 7), 1).
-% occurs(move(1, 4, 6), 2).
-% occurs(move(1, 4, 6), 0).
-% occurs(move(1, 5, 6), 1).
 
 occurs(A, I) | -occurs(A, I) :- action(A),
                                 step(I),
@@ -476,6 +498,7 @@ occurs(A, I) | -occurs(A, I) :- action(A),
 
 something_happened(I) :- occurs(A, I).
 
+% Sorted based on occurs
 :~ occurs(A,I). [1,I,A]
 
 :- step(J),
